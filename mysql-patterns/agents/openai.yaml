@@ -1,0 +1,4 @@
+interface:
+  display_name: "MySQL Patterns"
+  short_description: "MySQL and MariaDB production database patterns"
+  default_prompt: "Use $mysql-patterns to review this MySQL or MariaDB schema, query, migration, or database configuration."

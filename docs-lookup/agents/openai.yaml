@@ -1,0 +1,4 @@
+interface:
+  display_name: "文档查询"
+  short_description: "通过 Context7 获取库与 API 的当前文档"
+  default_prompt: "Use $docs-lookup to answer this library or API question with current Context7 documentation."

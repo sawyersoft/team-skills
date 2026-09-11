@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Agent"
+  short_description: "Analyze and design software architecture"
+  default_prompt: "Use $codebase-architecture to analyze this repository architecture and propose a pragmatic design direction."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "mybatis-plus"
+  short_description: "model efficient for mysql ORM queries, and writes"
+  default_prompt: "Use $mybatis-plus to implement Java project data changes."

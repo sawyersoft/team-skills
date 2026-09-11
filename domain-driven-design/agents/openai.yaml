@@ -1,0 +1,4 @@
+interface:
+  display_name: "领域驱动设计"
+  short_description: "使用 DDD 战术模式构建 Spring 领域模型"
+  default_prompt: "使用 $domain-driven-design 实现这个 Spring Boot 变更。"
