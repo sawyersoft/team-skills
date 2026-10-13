@@ -227,40 +227,109 @@ src/main/java/com/example/app/
 
 ```java
 // 1. 定义接口
-public interface LlmRequestExecutor {
-    boolean supports(String type);
-    Mono<ObjectNode> executeNormal(ObjectNode request, ModelGroupConfigItem provider, ...);
-    Flux<ServerSentEvent<String>> executeStream(ObjectNode request, ModelGroupConfigItem provider, ...);
+public interface NotifyStrategy {
+    void sendNotify(OrderEntity order);
 }
 
 // 2. 多个实现
-@Service
-public class OpenAiRequestExecutor extends AbstractRequestExecutor {
-    @Override
-    public boolean supports(String type) {
-        return type.startsWith("openai_");
+
+// 策略需要的公共抽象方法，通用逻辑放到抽象类中实现，具体策略实现自己独有逻辑
+@Slf4j
+@RequiredArgsConstructor
+public class AbstractNotifyProvider {
+    private RedisUtils redisUtils;
+    private MessageGateWay messageGateWay;
+
+    /**
+     * 发送通知失败时不要阻塞主流程，捕获异常记录错误，但是不阻断流程.
+     * TODO 如何发送消息，发送给谁？ 没有商户信息 如何确定发给谁，直接发给手机号么?
+     *
+     * @param order    订单信息
+     * @param template 模板号
+     * @param params   参数
+     * @return true or false
+     */
+    protected boolean sendNotify(OrderEntity order, Template template, Map<String, String> params) {
+        return messageGateWay.sendNotify(order, template, params);
     }
 }
 
-@Service
-public class AnthropicRequestExecutor extends AbstractRequestExecutor {
+// 订单待审核 -> 审核通过或拒绝，此时发送通知。
+@Component("WAIT_REVIEW")
+public class NotifyReviewComplete extends AbstractNotifyProvider implements NotifyStrategy {
+
+    @Resource
+    private ReviewRepository reviewRepository;
+
+    /**
+     * @param order 提交审核时的订单数据，待审核。
+     */
     @Override
-    public boolean supports(String type) {
-        return type.equals("anthropic_messages");
+    public void sendNotify(OrderEntity order) {
+        ReviewEntity review = reviewRepository.getOneByMoSn(order.getMoSn());
+        Map<String, String> params = new HashMap<>();
+
+        params.put("category", order.getCategory());
+        params.put("brand", order.getBrandName());
+        if (review.getResult().equals(ReviewResultEnum.APPROVE.getValue())) {
+            sendNotify(order, Template.REVIEW_APPROVE, params);
+        } else {
+            sendNotify(order, Template.REVIEW_REJECT, params);
+        }
+    }
+}
+
+// 订单待支付状态 WAIT_PAY 发送通知用户支付
+@Component("WAIT_PAY")
+public class NotifyToPay extends AbstractNotifyProvider implements NotifyStrategy {
+
+    @Override
+    public void sendNotify(OrderEntity order) {
+        Map<String, String> params = new HashMap<>();
+        params.put("category", order.getCategory());
+        params.put("brand", order.getBrandName());
+        sendNotify(order, Template.PAY_TIP_ONE, params);
     }
 }
 
 // 3. 通过 Spring 自动注入所有实现，运行时动态选择
+
 @Service
 @RequiredArgsConstructor
-public class RelayServiceImpl implements RelayService {
-    private final List<LlmRequestExecutor> executors;
+public class NotifyStrategyContext {
+    private final Map<String, NotifyStrategy> notifyStrategyMap = new ConcurrentHashMap<>();
 
-    private LlmRequestExecutor getExecutor(String type) {
-        return executors.stream()
-            .filter(e -> e.supports(type))
-            .findFirst()
-            .orElseThrow(() -> new BusinessException("不支持的请求类型: " + type));
+    public NotifyStrategyContext(Map<String, NotifyStrategy> notifyStrategyMap) {
+        if (!notifyStrategyMap.isEmpty()) {
+            notifyStrategyMap.clear();
+        }
+
+        this.notifyStrategyMap.putAll(notifyStrategyMap);
+    }
+
+    public NotifyStrategy getStrategy(String status) {
+        return this.notifyStrategyMap.get(status);
+    }
+}
+
+// 4. 业务逻辑，基于订单状态变更事件 处理业务
+
+// 订单审核通过后，根据订单状态 确定通知策略，执行策略。
+@Slf4j
+@Component
+public class OrderReviewHandler {
+    @Resource
+    private NotifyStrategyContext strategyContext;
+
+    /**
+     * 待审核状态下，审核通过的消息通知
+     *
+     * @param event 事件
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void orderReviewDoneHandler(OrderReviewEvent event) {
+        NotifyStrategy notifyStrategy = strategyContext.getStrategy(event.getOrder().getStatus());
+        notifyStrategy.sendNotify(event.getOrder());
     }
 }
 ```
@@ -290,7 +359,178 @@ public abstract class AbstractRequestExecutor implements LlmRequestExecutor {
 }
 ```
 
+## 异常体系设计
 
+### 异常类型 和 错误码设计
+异常类 和 错误码统一使用 `com.xhj.utils.common.constant` 枚举定义的错误码
+
+```java
+/**
+ * REST接口请求返回CODE码定义
+ */
+@Getter
+@AllArgsConstructor
+public enum ResponseCode {
+    SUCCESS(200, "操作成功"),
+    FAILED(500, "操作失败"),
+    UNAUTHORIZED(401, "暂未登录或token已经过期"),
+    FORBIDDEN(403, "没有相关权限"),
+    NOTFOUND(404, "请求的资源不存在!"),
+    PARAMS_MISSING(1001, "参数缺失错误"),
+    PARAMS_INVALID(1003, "请求参数[%s]检验失败，原因:[%s]!"),
+    SIGNATURE_TIMESTAMP_ERROR(2002, "签名时间戳缺少或已过期或格式错误"),
+    NETWORK_FAILED(5000, "网络请求发生异常"),
+    BUSINESS_FAILED(6000, "业务处理发生异常"),
+    SERVER_BUSY(9998, "服务器繁忙"),
+    SERVER_ERROR(9999, "系统异常"),
+
+    //系统内置HTTP类异常Code码转换定义
+    MethodArgumentNotValidException(400, "客户端请求异常，通常是参数或者uri不对。"),
+    MethodArgumentTypeMismatchException(400, "参数类型不匹配，比如要求int给了字符串!"),
+    MissingServletRequestPartException(400, "POST文件上传，缺少multipart/form-data类参数!"),//针对通常是multipart/form-data参数
+    MissingPathVariableException(400, "REST接口URI上的参数缺失，如:brand/{id},缺少id参数!"),
+    BindException(400, "地址已在使用，通常是端口被占用，启动服务失败。"),
+    MissingServletRequestParameterException(400, "请求缺少必传参数，请补全参数!"),
+    TypeMismatchException(400, "请求参数类型错误，参数绑定实体类属性时发现类型不对。"),
+    ServletRequestBindingException(400, "请求绑定异常,通常是@RequestAttribute指定的控制器参数"),
+    HttpMessageNotReadableException(400, "调用方在以post json方式请求服务时，没有对参数进行json序列化。"),
+    NoHandlerFoundException(404, "请求接口不存在或路由参数缺失!"),
+    NoSuchRequestHandlingMethodException(404, "指定的请求不存在，404 Not Found!"),
+    HttpRequestMethodNotSupportedException(405, "请求方法Method不支持，比如只支持POST的接口用GET方法请求!"),
+    //服务器端指定的输出媒体类型，客户端不接受，例如服务端标记输出text/plan（@RequestMapping(value="test",produces="text/plain"))但是客户端为Accept: application/json
+    HttpMediaTypeNotAcceptableException(406, "服务端输出的媒体类型客户端不接受。"),
+    HttpMediaTypeNotSupportedException(415, "不支持的媒体类型"),
+    ConversionNotSupportedException(500, "服务器内部错误，通常是Mapper类型转换或对比异常!"),
+    HttpMessageNotWritableException(500, "服务器内部错误，通常是对象转为JSON时出现了无限递归调用!"),
+    AsyncRequestTimeoutException(503, "服务不可用!");
+
+    private final int code;
+    private final String message;
+
+    /**
+     * 指定枚举值获得枚举对象
+     *
+     * @param code 枚举值
+     * @return 枚举对象
+     */
+    public static ResponseCode getStatusEnum(int code) {
+        return Arrays.stream(ResponseCode.values()).filter(e -> e.getCode() == code).findFirst().orElse(SERVER_ERROR);
+    }
+
+    /**
+     * 获得枚举值的名称或描述文字
+     *
+     * @param code 枚举值
+     * @return String 行数说明
+     */
+    public static String getLabel(int code) {
+        return ResponseCode.getStatusEnum(code).getMessage();
+    }
+}
+
+```
+
+### 自定义异常类
+所有自定义异常都必须继承自 RuntimeException，为什么用 RuntimeException 而不是 checked Exception，因为 Spring 的 @Transactional 默认只回滚 RuntimeException，而且 checked Exception 会污染方法签名，让调用链上的每个方法都要声明 throws。
+
+```java
+/**
+ * 业务异常基类
+ * 所有可预期的业务错误都应继承此类
+ */
+@Getter
+public class BusinessException extends RuntimeException {
+
+    private final Integer code;
+
+    public BusinessException(Integer code, String message) {
+        super(message);
+        this.code = code;
+    }
+
+    public BusinessException(ErrorCode errorCode) {
+        super(errorCode.getMessage());
+        this.code = errorCode.getCode();
+    }
+}
+
+/**
+ * 资源不存在异常
+ */
+public class ResourceNotFoundException extends BusinessException {
+    public ResourceNotFoundException(String resource, Object id) {
+        super(404, resource + "不存在: " + id);
+    }
+}
+
+/**
+ * 重复资源异常
+ */
+public class DuplicateResourceException extends BusinessException {
+    public DuplicateResourceException(String message) {
+        super(409, message);
+    }
+}
+```
+
+### 异常使用规则
+
+#### 基本原则：Service 层的职责是检查业务规则，不满足就抛异常。不要返回 null 或者特殊状态码让 Controller 去判断——那会让 Controller 充满 if-else。
+
+```java
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+
+    private final UserMapper userMapper;
+
+    @Override
+    public UserVO getUserById(Long id) {
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            throw new NotFoundException("用户不存在", id);
+        }
+        return convertToVO(user);
+    }
+}
+```
+
+#### try-catch 使用原则
+- 非必要，不要在各层业务代码 catch 异常 —— 让它一路抛到全局处理器
+- 只 catch 你确实能处理的异常，比如外部 API 调用失败需要降级
+- catch 后必须做有意义的事（日志 + 降级 / 日志 + 转换为业务异常），禁止空 catch 不做任何处理
+
+```java
+// ❌ BAD - 错误：空 catch，异常被吃掉了
+try {
+    callExternalApi();
+} catch (Exception e) {
+    // 什么都不做
+}
+
+// ❌ BAD - 错误：catch 了又原样抛出，没有意义
+try {
+    userMapper.insert(user);
+} catch (Exception e) {
+    throw e;
+}
+
+// ✅ 正确：catch 外部异常，转为业务异常 + 记录日志
+try {
+    externalApiClient.sendNotification(userId);
+} catch (Exception e) {
+    log.error("发送通知失败, userId={}: {}", userId, e);
+    // 通知失败不影响主流程，降级处理
+}
+
+// ✅ 正确：catch 后转为业务异常
+try {
+    smsService.sendCode(phone);
+} catch (SmsException e) {
+    log.error("短信发送失败: {}", e);
+    throw new BusinessException(ErrorCode.SMS_SEND_FAILED);
+}
+```
 
 ## 测试期望
 

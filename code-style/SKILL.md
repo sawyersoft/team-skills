@@ -1,6 +1,6 @@
 ---
 name: code-style
-description: "适用于 Spring Boot 服务中可读、可维护的 Java (17+) 代码的规范，编写或审查 Java 代码时，强制执行编码标准时主动使用，包括命名、不可变性、Optional用法、流、异常、泛型和项目布局。"
+description: "适用于编写、审查或重构 Java 代码，内容涵盖异常处理、并发、集合、Stream API、面向对象编程设计、性能优化、测试以及常见反模式。编写或审查 Java 代码时，强制执行编码标准时主动使用，包括命名、不可变性、Optional用法、流、异常、泛型和项目布局。"
 ---
 
 # 编码风格（Coding Style）
@@ -125,5 +125,11 @@ if (retryCount > MAX_RETRY_COUNT) {
 当一个函数同时负责：参数校验 + 数据查询 + 业务计算 + 状态修改 + 事件发送 + 日志记录，通常意味着它需要进一步拆分或重新设计职责。
 
 References
-java详细规范参考: references/java-code-style.md
+- java代码基础规范按照 `references/java-code-style.md` 规则要求。
+- 使用提前返回减少嵌套层级按照 `code-early-return.md` 规则要求。
+- 集合或数组方法的返回应避免返回 null 详细参照 `anti-null-return.md` 规则要求。
+- 提前 return 减少嵌套层级(nesting)，详细参照 `code-early-return.md` 规则要求。
+- 集合类型使用详细参照 `col-interface-type.md` 规则要求。
+- 线程定义和使用规范详细参照 `concurrency-executor-service.md` 规则要求。
+- 公理化管道设计规范详细参照 `design-axiomatic-pipeline.md` 规则要求。
 

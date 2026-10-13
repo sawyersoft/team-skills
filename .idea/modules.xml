@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/skill-repo/domain-driven-design/domain-driven-design.iml" filepath="$PROJECT_DIR$/skill-repo/domain-driven-design/domain-driven-design.iml" />
+      <module fileurl="file://$PROJECT_DIR$/domain-driven-design/domain-driven-design2.iml" filepath="$PROJECT_DIR$/domain-driven-design/domain-driven-design2.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/skills.iml" filepath="$PROJECT_DIR$/.idea/skills.iml" />
+      <module fileurl="file://$PROJECT_DIR$/springboot-transactional-patterns/springboot-transactional-patterns.iml" filepath="$PROJECT_DIR$/springboot-transactional-patterns/springboot-transactional-patterns.iml" />
+      <module fileurl="file://$PROJECT_DIR$/transactional-patterns/transactional-patterns.iml" filepath="$PROJECT_DIR$/transactional-patterns/transactional-patterns.iml" />
+      <module fileurl="file://$PROJECT_DIR$/skill-repo/transactional-patterns/transactional-patterns2.iml" filepath="$PROJECT_DIR$/skill-repo/transactional-patterns/transactional-patterns2.iml" />
+    </modules>
+  </component>
+</project>

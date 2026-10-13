@@ -1,0 +1,4 @@
+interface:
+  display_name: "Java Reviewer"
+  short_description: "Review Java code for production risks"
+  default_prompt: "Use $java-reviewer to review the completed Java project changes."

@@ -8,23 +8,11 @@ description: >
 
 ## DDD 分层架构（DDD Layered Architecture）
 
-核心原则：
-将 Spring Boot 应用围绕 **领域驱动设计（DDD）** 进行组织，而不是把`Controller → Service → Repository` 简单视为完整架构。
+**核心原则：** 将 Spring Boot 应用围绕 **领域驱动设计（DDD）** 进行组织，而不是把`Controller → Service → Repository` 简单视为完整架构。
 **业务规则属于 Domain；Application Service负责用例编排；Infrastructure 负责技术实现；Interface负责外部协议适配；依赖方向必须朝向 Domain。**
 
 ## 依赖规则
-
-依赖方向：
-``` text
-Interface
-    ↓
-Application
-    ↓
-Domain
-    ↑
-Infrastructure
-```
-
+依赖方向：Interface -> Application -> Domain <- Infrastructure
 -   Interface层 可以依赖 Application层。
 -   Application 可以依赖 Domain。
 -   Domain 不得依赖 Interface 或 Infrastructure。
@@ -33,15 +21,12 @@ Infrastructure
 -   Domain 代码原则上不应依赖 Spring、JPA、Kafka、HTTP、Redis等基础设施框架。
 
 重点不是简单的 package 隔离，而是保护 Domain 不被技术细节污染。
----
 
 # Domain 层
-
 Domain 是系统的核心,它表达**业务是什么、业务允许什么、不允许什么**，而不是数据库如何存储或系统如何与外部通信，优先保持 Domain 与框架无关。
-Domain 只能包含Aggregate Root,Entity,Value Object,Domain Service,Domain Policy/Specification,Domain Event,Domain Exception,Repository Interface,业务所需的 Domain Port。
+Domain 只能包含Aggregate Root,Entity,Value Object,Domain Service,Domain Policy/Specification,Domain Event,Domain Exception,Repository接口定义。
 
 ## Entity
-
 Entity 通过**身份和生命周期**定义，而不仅仅是属性集合。
 
 ``` java
@@ -51,7 +36,6 @@ order.cancel();
 // BAD 而不应该直接修改实体属性的状态，因为实体行为不仅是修改状态 还有上下游流程要受影响
 order.setStatus(OrderStatus.CANCELLED);
 ```
-
 实体类规则：
 -   身份必须明确，要有唯一识别ID，注意不是数据库自增ID。
 -   属于 Entity 的业务行为应放在 Entity 中。
@@ -60,7 +44,6 @@ order.setStatus(OrderStatus.CANCELLED);
 -   务必将持久化关注点与领域行为分离。
 
 ## Aggregate
-
  Aggregate 是一个**一致性边界**，所有聚合实现必须要继承自com.xhj.utils.common.dto.AggregateRoot类。
 
 ``` text
@@ -80,8 +63,8 @@ order.cancel();
 order.changeShippingAddress(address);
 
 // ❌ BAD 从外部直接访问子实体
-order.getItems().add(new OrderItem(...)); // 绕过不变式
-order.setStatus(...);
+order.getItems().add(new OrderItem(...));   // 不应该绕过实体不变式，直接修改数据
+order.setStatus(...);                       // 不应该直接修改状态，应该通过实体行为修改状态
 order.getItems().get(0).setQuantity(...);
 ```
 
@@ -102,16 +85,7 @@ order.getItems().get(0).setQuantity(...);
 
 ## 值对象
 
-对于身份由其值决定的概念，使用 Value Object，具有 不可变性、没有唯一性标识，并且按值判断是否相等，例如：
-``` text
-Money
-OrderId
-CustomerId
-EmailAddress
-PhoneNumber
-Address
-DateRange
-```
+对于身份由其值决定的概念，使用 Value Object，具有 不可变性、没有唯一性标识，并且按值判断是否相等，例如：Money,OrderId,CustomerId,EmailAddress,PhoneNumber,Address,DateRange
 
 示例：
 ```java
@@ -245,28 +219,22 @@ public class OrderPricingService {
 建议优先把行为放进实体和值对象。只有确定某条业务规则没有自然归属时，才引入 Domain Service，禁止把所有业务逻辑都堆进各种 XxxDomainService。
 
 ## Repository
-
-Repository 是面向 Domain 的 Aggregate 持久化抽象。
-接口属于 Domain：
+Repository 是面向 Domain 的 Aggregate 持久化抽象，接口属于 Domain，实例：
 
 ``` java
 public interface OrderRepository {
-
     Optional<Order> findById(OrderId id);
-
     void save(Order order);
-
     void delete(Order order);
 }
 ```
 
-实现属于 Infrastructure：
+实现属于 Infrastructure，示例代码：
 
 ``` java
 @Repository
 @RequiredArgsConstructor
 public class MbpOrderRepository implements OrderRepository {
-
     private final SpringDataOrderRepository repository;
 
     @Override
@@ -288,7 +256,6 @@ public class MbpOrderRepository implements OrderRepository {
 ```
 
 ### Repository 规则
-
 - 当 Repository 表达 Domain 的持久化需求时，其接口属于 Domain。
 - JPA / Spring Data / Mybatis /Mybatis-plus Repository 接口属于 Infrastructure。
 - Repository 主要负责 Aggregate 的持久化和获取。
@@ -299,9 +266,7 @@ public class MbpOrderRepository implements OrderRepository {
 - 对复杂查询，适当使用显式 Projection / Read Model。
 
 ## Application 层
-
 Application 层负责定义、编排 和 执行**用例（Use Case）**，它回答的是 **系统提供什么操作？**
-
 Application 层负责“业务流程”，不负责负责“业务规则”，它的典型职责：
 - 调度和编排实体、聚合、领域服务和业务流程。
 - 加载所需 Aggregate。
@@ -316,6 +281,7 @@ Application 层负责“业务流程”，不负责负责“业务规则”，�
 示例：
 
 ``` java
+// ✅ GOOD - application service
 @Service
 @RequiredArgsConstructor
 public class OrderApplicationService {
@@ -335,6 +301,14 @@ public class OrderApplicationService {
         return OrderResult.from(order);
     }
 }
+
+// ❌ BAD — field injection, HTTP concern in service
+@Service
+public class OrderService {
+    @Autowired private OrderRepository orderRepository;
+
+    public ResponseEntity<Order> createOrder(...) { ... } // HTTP type in service
+}
 ```
 
 Application Service 负责协调用例，而 Domain 负责决定操作是否符合业务规则。
@@ -353,7 +327,6 @@ Interface 层负责把外部协议转换为 Application Command，并把 Applica
 -   CLI Adapter
 
 ## Controller 规则
-
 -   只处理 HTTP 相关内容。
 -   解析和校验请求。
 -   Request DTO → Application Command。

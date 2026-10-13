@@ -1,0 +1,4 @@
+interface:
+  display_name: "TypeScript Node Doc Updater"
+  short_description: "Update TypeScript/Node docs and Codemaps"
+  default_prompt: "Use $doc-updater-typescript-node to update TypeScript/Node.js docs and Codemaps."

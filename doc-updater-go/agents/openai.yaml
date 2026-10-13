@@ -1,0 +1,4 @@
+interface:
+  display_name: "Go Doc Updater"
+  short_description: "Update Go docs and Codemaps"
+  default_prompt: "Use $doc-updater-go to update Go docs and Codemaps."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doc Updater"
+  short_description: "Route docs and Codemaps updates by ecosystem"
+  default_prompt: "Use $doc-updater to update documentation and Codemaps for this project."
