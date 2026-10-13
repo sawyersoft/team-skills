@@ -1,4 +1,0 @@
-interface:
-  display_name: "PHP Doc Updater"
-  short_description: "Update PHP docs and Codemaps"
-  default_prompt: "Use $doc-updater-php to update PHP docs and Codemaps."

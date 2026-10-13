@@ -1,4 +1,0 @@
-interface:
-  display_name: "Java Doc Updater"
-  short_description: "Update Java docs and Codemaps"
-  default_prompt: "Use $doc-updater-java to update Java/Spring docs and Codemaps."

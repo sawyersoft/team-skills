@@ -6,9 +6,7 @@ description: >
 ---
 
 # 事务模式
-
 ## 基本规则
-
 - `@Transactional` 应标注在**服务层方法**上，不应标注在控制器或仓储层上
 - 默认传播行为是 `REQUIRED`——加入已有事务，或者创建一个新事务
 - 对数据库执行写操作或协调多个写操作的方法，应始终使用该注解
@@ -20,7 +18,6 @@ description: >
 @RequiredArgsConstructor
 @Transactional(readOnly = true) // 作为该服务中所有方法的默认事务配置
 public class OrderService {
-
     @Transactional // 写操作覆盖类级别的 readOnly 配置
     public Order createOrder(CreateOrderRequest request) {
         inventoryService.reserve(request.items()); // 参与同一个事务
