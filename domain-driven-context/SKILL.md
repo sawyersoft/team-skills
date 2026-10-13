@@ -28,7 +28,7 @@ description: 构建并提炼项目的领域模型。适用于讨论代码库技�
 └── src/
 ```
 
-如果项目根目录存在 CONTEXT-MAP.md，则说明该仓库包含多个领域限界上下文（Bounded Context）。CONTEXT-MAP.md 会指出每个上下文对应的 CONTEXT.md 所在位置：
+如果项目根目录存在 `CONTEXT-MAP.md`，则说明该仓库包含多个领域限界上下文（Bounded Context）。CONTEXT-MAP.md 会指出每个上下文对应的 CONTEXT.md 所在位置：
 ```
 /
 ├── CONTEXT-MAP.md

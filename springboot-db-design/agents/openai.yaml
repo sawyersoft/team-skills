@@ -1,0 +1,4 @@
+interface:
+  display_name: "springboot-db-design"
+  short_description: "model efficient for mysql ORM queries, and writes"
+  default_prompt: "Use $springboot-db-design to implement Java project data changes."

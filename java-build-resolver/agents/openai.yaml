@@ -1,0 +1,4 @@
+interface:
+  display_name: "Java Build Resolver"
+  short_description: "Resolve Java build and dependency failures"
+  default_prompt: "Use $java-build-resolver to diagnose and fix this Java Maven or Gradle build failure."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Go Build Resolver"
+  short_description: "Resolve go build and dependency failures"
+  default_prompt: "Use $go-build-resolver to diagnose and fix this go build failure."
